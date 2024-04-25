@@ -123,3 +123,16 @@ class GANHingeLoss(nn.Module):
 
     def forward(self, y, as_real=True):
         return self.D_loss(y, as_real)
+
+
+# コサイン距離基準の Triplet Margin Loss
+class CosineTripletMarginLoss(nn.Module):
+    def __init__(self, margin=0.3, scale=16.0):
+        super(CosineTripletMarginLoss, self).__init__()
+        self.margin = margin
+        self.scale = scale
+    def forward(self, anc, pos, *negs):
+        c = -torch.sum(anc * pos, dim=1) + self.margin
+        for neg in negs:
+            c = c + torch.sum(anc * neg, dim=1)
+        return torch.mean(torch.log(1 + torch.exp(self.scale * c)))
