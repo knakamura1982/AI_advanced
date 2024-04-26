@@ -1,6 +1,6 @@
-import gym
-from gym import envs
+import gymnasium as gym
+from gymnasium import envs
 
 
-for spec in envs.registry.all():
-    print(spec.id)
+for name in envs.registry.keys():
+    print(name)

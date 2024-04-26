@@ -1,8 +1,9 @@
-import gym
+import gymnasium as gym
 
 
 # 環境の名称（タスク名）を指定
-env = gym.make('MountainCar-v0')
+# ちなみに，render_mode=None を指定するとゲーム画面が描画されなくなる
+env = gym.make('MountainCar-v0', render_mode='human')
 
 # 初期化
 state = env.reset()

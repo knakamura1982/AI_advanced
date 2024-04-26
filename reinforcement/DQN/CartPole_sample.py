@@ -1,4 +1,4 @@
-import gym
+import gymnasium as gym
 
 
 # 何エピソード分，ゲームを実行するか
@@ -12,7 +12,8 @@ PRINT_STATUS = False
 
 
 # 倒立振子ゲームの環境を作成
-env = gym.make('CartPole-v0')
+# ちなみに，render_mode=None を指定するとゲーム画面が描画されなくなる
+env = gym.make('CartPole-v1', render_mode='human')
 
 # ゲームを N_EPISODES 回実行
 for e in range(N_EPISODES):
@@ -21,14 +22,11 @@ for e in range(N_EPISODES):
 
     # まず，ゲームを初期化
     # current_state には環境の初期状態（台車の位置，台車の速度，棒の角度，棒の先端の速度，の4次元ベクトル）が保存される
-    current_state = env.reset()
+    current_state, info = env.reset()
 
     # N_STEPS 分を1エピソードとして実行
     steps_to_live = N_STEPS
     for t in range(N_STEPS):
-
-        # 現在のゲーム画面をレンダリング
-        env.render()
 
         if PRINT_STATUS:
             # 現在の環境状態を出力
@@ -47,8 +45,8 @@ for e in range(N_EPISODES):
         #   - next_state: 次時刻の環境状態
         #   - reward: 即時報酬（このゲームでは常に +1 ．きちんと学習／制御するためには，プログラマが設定した報酬を加算することが望ましい）
         #   - done: 終了フラグ（N_STEP 分が完了していなくても，ある程度棒が倒れるとそこで終了となる）
-        #   - info: デバッグ情報，気にしなくて良い
-        next_state, reward, done, info = env.step(action)
+        #   - truncated, info: このプログラムでは使用しないので気にしなくて良い
+        next_state, reward, done, truncated, info = env.step(action)
 
         if PRINT_STATUS:
             # 即時報酬の値を出力

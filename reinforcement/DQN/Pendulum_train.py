@@ -1,10 +1,27 @@
-import gym
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import gymnasium as gym
 import numpy as np
-from utils import EPSController, ReplayMemory
+from utils import EPSController, ReplayMemory, save_checkpoint, load_checkpoint, save_replay_memory, load_replay_memory
 from networks import PendulumQPolNet, PendulumQValNet
+
+
+##### 中断／再開に関する設定: ここから #####
+
+# 前回の試行の続きを行いたい場合は True にする -> 再開モードになる
+RESTART_MODE = False
+
+# 中断／再開の際に用いる一時ファイル
+CHECKPOINT_REPLAY_MEMORY = 'Pendulum_checkpoint_memory.pkl'
+CHECKPOINT_EPISODE_ID = 'Pendulum_checkpoint_epoch.pkl'
+CHECKPOINT_QP_MODEL = 'Pendulum_checkpoint_QP_model.pth'
+CHECKPOINT_QV_MODEL = 'Pendulum_checkpoint_QV_model.pth'
+CHECKPOINT_QP_OPT = 'Pendulum_checkpoint_QP_opt.pth'
+CHECKPOINT_QV_OPT = 'Pendulum_checkpoint_QV_opt.pth'
+CHECKPOINT_EPS = 'Pendulum_checkpoint_eps.pkl'
+
+##### 中断／再開に関する設定: ここまで #####
 
 
 ##### 学習設定: ここから #####
@@ -22,6 +39,7 @@ REPLAY_MEMORY_CAPACITY = 100000
 TARGET_UPDATE_FREQ = 10
 
 # 何エピソード分，学習を実行するか
+# 再開モードの場合も, このエピソード数の分だけ追加学習される（N_EPISODESは最終エピソード番号ではない）
 N_EPISODES = 2000
 
 # 1エピソードあたりの最大ステップ数
@@ -61,11 +79,22 @@ memory = ReplayMemory(capacity=REPLAY_MEMORY_CAPACITY)
 # ε-greedy における ε を決定するクラスを用意
 EPS = EPSController(EPS_START, EPS_END, EPS_DECAY)
 
+# 再開モードの場合は，前回チェックポイントから情報をロードして学習再開
+if RESTART_MODE:
+    INIT_EPISODE_ID, LAST_EPISODE_ID, QP_net, QP_optimizer, EPS = load_checkpoint(CHECKPOINT_EPISODE_ID, CHECKPOINT_QP_MODEL, CHECKPOINT_QP_OPT, CHECKPOINT_EPS, N_EPISODES, QP_net, QP_optimizer)
+    _, _, QV_net, QV_optimizer, _ = load_checkpoint(CHECKPOINT_EPISODE_ID, CHECKPOINT_QV_MODEL, CHECKPOINT_QV_OPT, CHECKPOINT_EPS, N_EPISODES, QV_net, QV_optimizer)
+    memory = load_replay_memory(CHECKPOINT_REPLAY_MEMORY)
+    print('')
+else:
+    INIT_EPISODE_ID = 0
+    LAST_EPISODE_ID = INIT_EPISODE_ID + N_EPISODES
+
 # ゲーム環境を作成
-env = gym.make('Pendulum-v0')
+# render_mode=None を指定するとゲーム画面が描画されなくなり，学習を高速化できる
+env = gym.make('Pendulum-v1', render_mode='human')
 
 # ここから学習．ゲームを N_EPISODES 回実行
-for e in range(N_EPISODES):
+for e in range(INIT_EPISODE_ID, LAST_EPISODE_ID):
 
     print('Episode {0}:'.format(e + 1))
 
@@ -89,7 +118,7 @@ for e in range(N_EPISODES):
     print('  epsilon = {0}'.format(eps))
 
     # ゲームを初期化し，初期状態を取得
-    current_state = env.reset()
+    current_state, info = env.reset()
 
     # 1エピソード分を実行
     n_data = 0
@@ -98,9 +127,6 @@ for e in range(N_EPISODES):
     total_reward = 0
     steps_to_live = N_STEPS
     for t in range(N_STEPS):
-
-        # 現在のゲーム画面をレンダリング
-        env.render()
 
         # ε-greedy で AI の行動を決める
         p = np.random.rand()
@@ -113,7 +139,7 @@ for e in range(N_EPISODES):
             QP_net.train()
 
         # 選択した行動を実行
-        next_state, reward, done, info = env.step(action)
+        next_state, reward, done, truncated, info = env.step(action)
         total_reward += reward
 
         # Replay memory にデータを登録
@@ -159,6 +185,11 @@ for e in range(N_EPISODES):
         if done:
             steps_to_live = t + 1
             break
+
+    # 現在の学習状態を一時ファイルに保存
+    save_checkpoint(CHECKPOINT_EPISODE_ID, CHECKPOINT_QP_MODEL, CHECKPOINT_QP_OPT, CHECKPOINT_EPS, e+1, QP_net, QP_optimizer, EPS)
+    save_checkpoint(CHECKPOINT_EPISODE_ID, CHECKPOINT_QV_MODEL, CHECKPOINT_QV_OPT, CHECKPOINT_EPS, e+1, QV_net, QV_optimizer, EPS)
+    save_replay_memory(CHECKPOINT_REPLAY_MEMORY, memory)
 
     avg_QP_loss = sum_QP_loss if n_data == 0 else sum_QP_loss / n_data
     avg_QV_loss = sum_QV_loss if n_data == 0 else sum_QV_loss / n_data

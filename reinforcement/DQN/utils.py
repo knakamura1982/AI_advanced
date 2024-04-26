@@ -1,5 +1,7 @@
+import os
 import math
 import torch
+import pickle
 import numpy as np
 
 
@@ -98,3 +100,44 @@ class ReplayMemory(object):
             R = torch.tensor(self.reward[perm], dtype=torch.float32)
             D = torch.tensor(self.flag[perm], dtype=torch.float32)
         return C, A, R, N, D
+
+
+def save_replay_memory(mem_file, memory):
+    with open(mem_file, 'wb') as f:
+        pickle.dump(memory, f)
+
+
+def load_replay_memory(mem_file):
+    if os.path.isfile(mem_file):
+        with open(mem_file, 'rb') as f:
+            memory = pickle.load(f)
+        print('{} has been loaded.'.format(mem_file))
+    return memory
+
+
+def save_checkpoint(epoch_file, model_file, opt_file, eps_file, epoch, model, opt, eps_controller):
+    for param in model.parameters():
+        device = param.data.device
+        break
+    torch.save(model.to('cpu').state_dict(), model_file)
+    torch.save(opt.state_dict(), opt_file)
+    with open(epoch_file, 'wb') as f:
+        pickle.dump(epoch, f)
+    with open(eps_file, 'wb') as f:
+        pickle.dump(eps_controller, f)
+    model.to(device)
+
+
+def load_checkpoint(epoch_file, model_file, opt_file, eps_file, n_epochs, model, opt):
+    init_epoch = 0
+    if os.path.isfile(model_file) and os.path.isfile(opt_file) and os.path.isfile(eps_file):
+        model.load_state_dict(torch.load(model_file))
+        opt.load_state_dict(torch.load(opt_file))
+        print('{} has been loaded.'.format(model_file))
+        print('{} has been loaded.'.format(opt_file))
+        with open(epoch_file, 'rb') as f:
+            init_epoch = pickle.load(f)
+            last_epoch = n_epochs + init_epoch
+        with open(eps_file, 'rb') as f:
+            eps_controller = pickle.load(f)
+    return init_epoch, last_epoch, model, opt, eps_controller

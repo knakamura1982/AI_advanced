@@ -1,6 +1,6 @@
 import sys
-import gym
 import numpy as np
+import gymnasium as gym
 
 
 # 何エピソード分，ゲームを実行するか
@@ -18,10 +18,11 @@ else:
 
 
 # ゲーム環境を作成
-env = gym.make(env_name)
+# ちなみに，render_mode=None を指定するとゲーム画面が描画されなくなる
+env = gym.make(env_name, render_mode='human')
 
 # 一旦ゲームを初期化し，環境状態の次元数や行動の種類数をチェックする
-current_state = env.reset()
+current_state, info = env.reset()
 state_shape = np.asarray(current_state).shape
 print('shape of state tensor:', state_shape)
 if hasattr(env.action_space, 'n'):
@@ -37,14 +38,11 @@ for e in range(N_EPISODES):
     print('Episode {0}:'.format(e + 1))
 
     # まず，ゲームを初期化
-    current_state = env.reset()
+    current_state, info = env.reset()
 
     # N_STEPS 分を1エピソードとして実行
     steps_to_live = N_STEPS
     for t in range(N_STEPS):
-
-        # 現在のゲーム画面をレンダリング
-        env.render()
 
         # AIの行動をランダム選択
         action = env.action_space.sample()
@@ -53,8 +51,8 @@ for e in range(N_EPISODES):
         #   - next_state: 次時刻の環境状態
         #   - reward: 即時報酬
         #   - done: 終了フラグ
-        #   - info: デバッグ情報
-        next_state, reward, done, info = env.step(action)
+        #   - truncated, info: このプログラムでは使用しない
+        next_state, reward, done, truncated, info = env.step(action)
 
         # 現在状態の更新
         current_state = next_state
