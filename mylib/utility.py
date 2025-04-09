@@ -16,7 +16,7 @@ def print_args(args):
             print('device: {0}'.format(dev_str), file=sys.stderr)
         else:
             print('{0}: {1}'.format(key, value), file=sys.stderr)
-    print('')
+    print('', file=sys.stderr)
 
     if 'gpu' in args.keys():
         args['device'] = dev_str

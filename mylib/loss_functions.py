@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 
 
 # SSIM Loss
@@ -49,24 +50,46 @@ class SSIMLoss(nn.Module):
         return kernel_2d
 
 
-# VAE用の損失関数
+# VAE用の損失関数（BCE Loss版）
 class VAELoss(nn.Module):
 
-    def __init__(self, channels: int = 3, alpha: float = 0.1):
+    def __init__(self, alpha: float = 0.1):
         super(VAELoss, self).__init__()
-        self.channels = channels
         self.alpha = alpha
 
     def forward(self, x_reconstruted, x_input, mu, lnvar):
-        if self.channels == 1:
-            rec = F.binary_cross_entropy(x_input, x_reconstruted, reduction='mean')
-        else:
-            rec = torch.mean(torch.abs(x_reconstruted - x_input))
+        rec = F.binary_cross_entropy(x_reconstruted, x_input, reduction='mean')
         kl = -0.5 * torch.mean(1 + lnvar - mu**2 - torch.exp(lnvar))
         return rec + self.alpha * kl
 
 
-# VAE用の損失関数（SSIM Loss 版）
+# VAE用の損失関数（L1 Loss版）
+class VAEL1Loss(nn.Module):
+
+    def __init__(self, alpha: float = 0.1):
+        super(VAEL1Loss, self).__init__()
+        self.alpha = alpha
+
+    def forward(self, x_reconstruted, x_input, mu, lnvar):
+        rec = torch.mean(torch.abs(x_reconstruted - x_input))
+        kl = -0.5 * torch.mean(1 + lnvar - mu**2 - torch.exp(lnvar))
+        return rec + self.alpha * kl
+
+
+# VAE用の損失関数（L2 Loss版）
+class VAEL2Loss(nn.Module):
+
+    def __init__(self, alpha: float = 0.1):
+        super(VAEL2Loss, self).__init__()
+        self.alpha = alpha
+
+    def forward(self, x_reconstruted, x_input, mu, lnvar):
+        rec = torch.mean((x_reconstruted - x_input)**2)
+        kl = -0.5 * torch.mean(1 + lnvar - mu**2 - torch.exp(lnvar))
+        return rec + self.alpha * kl
+
+
+# VAE用の損失関数（SSIM Loss版）
 class VAESSIMLoss(nn.Module):
 
     def __init__(self, channels: int = 3, alpha: float = 0.1):
@@ -92,14 +115,14 @@ class GANLoss(nn.Module):
         self.a = 0.9 if label_smoothing else 1.0
 
     def G_loss(self, y):
-        gt = torch.ones(len(y), 1).to(y.device)
+        gt = torch.ones_like(y).to(y.device)
         return self.bce(y, gt)
 
     def D_loss(self, y, as_real=True):
         if as_real:
-            gt = self.a * torch.ones(len(y), 1).to(y.device)
+            gt = self.a * torch.ones_like(y).to(y.device)
         else:
-            gt = torch.zeros(len(y), 1).to(y.device)
+            gt = torch.zeros_like(y).to(y.device)
         return self.bce(y, gt)
 
     def forward(self, y, as_real=True):
@@ -127,12 +150,39 @@ class GANHingeLoss(nn.Module):
 
 # コサイン距離基準の Triplet Margin Loss
 class CosineTripletMarginLoss(nn.Module):
-    def __init__(self, margin=0.3, scale=16.0):
+
+    def __init__(self, temperature=0.5, margin=0.0):
         super(CosineTripletMarginLoss, self).__init__()
+        self.temperature = temperature
         self.margin = margin
-        self.scale = scale
-    def forward(self, anc, pos, *negs):
-        c = -torch.sum(anc * pos, dim=1) + self.margin
-        for neg in negs:
-            c = c + torch.sum(anc * neg, dim=1)
-        return torch.mean(torch.log(1 + torch.exp(self.scale * c)))
+
+    def forward(self, anc_feature, pos_feature, *neg_features):
+        pos = torch.exp((torch.sum(anc_feature * pos_feature, dim=1) - self.margin) / self.temperature)
+        neg = torch.zeros_like(pos)
+        for neg_feature in neg_features:
+            neg = neg + torch.exp(torch.sum(anc_feature * neg_feature, dim=1) / self.temperature)
+        return torch.mean(torch.log(1 + neg / pos))
+
+
+# SimCLR用の損失関数
+class SimCLRLoss(nn.Module):
+
+    def __init__(self, temperature=0.5, margin=0.0):
+        super(SimCLRLoss, self).__init__()
+        self.temperature = temperature
+        self.margin = margin
+
+    def forward(self, features1, features2, label=None):
+        n = len(features1)
+        features = torch.cat([features1, features2], dim=0)
+        sim = torch.mm(features, torch.t(features))
+        if label is None:
+            eye1 = torch.eye(n).repeat(2, 2).to(sim.device)
+        else:
+            label = label.to('cpu')
+            eye1 = torch.tensor(np.asarray([ [label[i]==label[j] for i in range(len(label))] for j in range(len(label)) ], dtype=np.float32)).repeat(2, 2).to(sim.device)
+        eye2 = eye1 - torch.eye(2 * n).to(sim.device)
+        sim = torch.exp((sim - self.margin * eye2) / self.temperature)
+        pos = torch.sum(eye2 * sim, dim=1)
+        neg = torch.sum((1 - eye1) * sim, dim=1)
+        return torch.mean(torch.log(1 + neg / pos))

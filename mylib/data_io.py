@@ -1,4 +1,5 @@
 import os
+import cv2
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -46,6 +47,33 @@ def __extract__(arr, target_indices):
         return torch.tensor(return_value, dtype=arr.dtype, device=arr.device)
     else:
         return return_value
+
+
+# torch.tensor型のテンソルをデータセットとして扱うためのクラス
+#   - filenames: 読み込むテンソルファイル（.pt）群のファイルパスリスト
+#   - tensors: 読み込み済みのテンソルを直接使用する場合に使用
+class TensorDataset(Dataset):
+
+    # コンストラクタ
+    def __init__(self, filenames=None, tensors=None):
+        super(TensorDataset, self).__init__()
+        if filenames is None:
+            self.tensors = tensors
+        else:
+            self.tensors = [torch.load(filenames[i], weights_only=True) for i in range(len(filenames))]
+        self.len = self.tensors[0].size()[0]
+
+    # データセットサイズを返却する関数
+    def __len__(self):
+        return self.len
+
+    # index 番目のデータを返却する関数
+    # データローダは，この関数を必要な回数だけ呼び出して，自動的にミニバッチを作成してくれる
+    def __getitem__(self, index):
+        if len(self.tensors) == 1:
+            return self.tensors[0][index]
+        else:
+            return tuple([self.tensors[i][index] for i in range(len(self.tensors))])
 
 
 # データセット読込用のクラス
@@ -333,6 +361,37 @@ def to_tanh_image(img):
 # 画素値の範囲を [-1, 1] から [0, 1] に変更
 def to_sigmoid_image(img):
     return 0.5 * (img + 1)
+
+
+# 複数枚の画像を個別に保存する処理を実行するクラス
+#   - root, dirname: 保存先のディレクトリパス（ root/dirname/ 以下に画像が保存される）
+#   - root, listname: 保存した画像のファイルリストのパス（ root/listname に画像ファイルリストが自動作成される）
+#   - mode: 保存対象のテンソルの値域が概ね [0, 1] であれば mode=='sigmoid' を，概ね [-1, 1] であれば mode=='tanh' を指定する
+#   - ext: 画像ファイルの拡張子として使用したい文字列（デフォルトでは png）
+class ImagesetWriter:
+    def __init__(self, root='./', dirname='images', listname='image_list.csv', ext='png'):
+        self.ext = ext
+        self.root = root
+        self.dirname = dirname
+        self.listname = listname
+        self.curr_index = 0
+        os.makedirs(os.path.join(root, dirname), exist_ok=True)
+        self.f = open(os.path.join(root, listname), 'w')
+        print('File Path', file=self.f)
+    def __del__(self):
+        self.f.close()
+    def __call__(self, data, mode='sigmoid'):
+        if mode == 'sigmoid':
+            data = torch.clamp(data, min=0.0, max=1.0).to('cpu').detach()
+        elif mode == 'tanh':
+            data = to_sigmoid_image(torch.clamp(data, min=-1.0, max=1.0)).to('cpu').detach()
+        else:
+            raise NotImplementedError()
+        data = (255 * data.numpy().transpose(0, 2, 3, 1)).astype(np.uint8)
+        for i in range(len(data)):
+            cv2.imwrite(os.path.join(self.root, self.dirname, '{0:07}.{1}'.format(self.curr_index, self.ext)), cv2.cvtColor(data[i], code=cv2.COLOR_RGB2BGR))
+            print(os.path.join(self.dirname, '{0:07}.{1}'.format(self.curr_index, self.ext)).replace('\\', '/'), file=self.f)
+            self.curr_index += 1
 
 
 # モデル保存用にファイル名を調整する

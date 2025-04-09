@@ -46,21 +46,21 @@ def __wrap_layer__(layer:nn.Module, normalization:str='none', activation:str='no
     # 活性化関数の作成
     activation = activation.lower()
     if activation == 'e' or activation == 'elu':
-        act = nn.ELU()
+        act = nn.ELU(inplace=True)
     elif activation == 'g' or activation == 'gelu':
-        act = nn.GELU()
+        act = nn.GELU(inplace=True)
     elif activation == 'l' or activation == 'leaky-relu' or activation == 'leaky_relu':
-        act = nn.LeakyReLU()
+        act = nn.LeakyReLU(inplace=True)
     elif activation == 'p' or activation == 'prelu':
-        act = nn.PReLU()
+        act = nn.PReLU(inplace=True)
     elif activation == 'r' or activation == 'relu':
-        act = nn.ReLU()
+        act = nn.ReLU(inplace=True)
     elif activation == 'w' or activation == 'silu' or activation == 'swish':
-        act = nn.SiLU()
+        act = nn.SiLU(inplace=True)
     elif activation == 's' or activation == 'sigmoid':
-        act = nn.Sigmoid()
+        act = nn.Sigmoid(inplace=True)
     elif activation == 't' or activation == 'tanh':
-        act = nn.Tanh()
+        act = nn.Tanh(inplace=True)
     else:
         act = None
 
