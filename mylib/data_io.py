@@ -311,7 +311,7 @@ def show_single_image(data, title='no_title', sec=0, save_fig=False, save_only=F
     plt.subplots_adjust(left=0.04, right=0.96, bottom=0.04, top=0.96)
     plt.axis('off')
     plt.title(title)
-    plt.imshow(img, cmap=cm.gray, interpolation='nearest')
+    plt.imshow(img, cmap=cm.gray, interpolation='nearest', vmin=0, vmax=255)
     if save_fig or save_only:
         plt.savefig(os.path.join(save_dir, title + '.png'), bbox_inches='tight')
     if not save_only:
@@ -343,7 +343,7 @@ def show_images(data, num, num_per_row=0, title='no_title', sec=0, save_fig=Fals
     for i in range(0, n_total):
         plt.subplot(n_rows, num_per_row, i+1)
         plt.axis('off')
-        plt.imshow(data[i].transpose(1, 2, 0), cmap=cm.gray, interpolation='nearest')
+        plt.imshow(data[i].transpose(1, 2, 0), cmap=cm.gray, interpolation='nearest', vmin=0, vmax=255)
     if save_fig or save_only:
         plt.savefig(os.path.join(save_dir, title + '.png'), bbox_inches='tight')
     if not save_only:
